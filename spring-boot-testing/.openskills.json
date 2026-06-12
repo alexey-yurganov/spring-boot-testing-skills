@@ -1,0 +1,7 @@
+{
+  "source": "anthropics/skills",
+  "sourceType": "git",
+  "repoUrl": "https://github.com/anthropics/skills",
+  "subpath": "skills/spring-boot-testing",
+  "installedAt": "2026-06-12T15:30:00.000Z"
+}

@@ -1,0 +1,66 @@
+{
+  "skill_name": "spring-boot-testing",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need unit tests for my OrderService. Here's the code:\n\n```java\n@Service\npublic class OrderService {\n    private final OrderRepository orderRepository;\n    private final PaymentGateway paymentGateway;\n    private final InventoryClient inventoryClient;\n\n    public OrderService(OrderRepository orderRepository, PaymentGateway paymentGateway, InventoryClient inventoryClient) {\n        this.orderRepository = orderRepository;\n        this.paymentGateway = paymentGateway;\n        this.inventoryClient = inventoryClient;\n    }\n\n    public Order placeOrder(Long customerId, List<OrderItem> items) {\n        for (OrderItem item : items) {\n            if (!inventoryClient.checkAvailability(item.getSku(), item.getQuantity())) {\n                throw new InsufficientInventoryException(\"Not enough stock for SKU: \" + item.getSku());\n            }\n        }\n        double total = items.stream().mapToDouble(i -> i.getPrice() * i.getQuantity()).sum();\n        PaymentResult payment = paymentGateway.charge(customerId, total);\n        if (!payment.isSuccess()) {\n            throw new PaymentFailedException(\"Payment failed: \" + payment.getErrorMessage());\n        }\n        Order order = new Order(customerId, items, total);\n        return orderRepository.save(order);\n    }\n\n    public Order getOrder(Long orderId) {\n        return orderRepository.findById(orderId)\n            .orElseThrow(() -> new OrderNotFoundException(\"Order not found: \" + orderId));\n    }\n\n    public void cancelOrder(Long orderId) {\n        Order order = orderRepository.findById(orderId)\n            .orElseThrow(() -> new OrderNotFoundException(\"Order not found: \" + orderId));\n        if (order.isShipped()) {\n            throw new IllegalStateException(\"Cannot cancel shipped order\");\n        }\n        order.setStatus(OrderStatus.CANCELLED);\n        orderRepository.save(order);\n        paymentGateway.refund(customerId, order.getTotal());\n    }\n}\n```\n\nPlease write the unit test class using JUnit 5 and Mockito.",
+      "expected_output": "A complete OrderServiceTest class with @ExtendWith(MockitoExtension.class), @Mock for all 3 dependencies, @InjectMocks for OrderService, and test methods covering: successful order placement, insufficient inventory, payment failure, order retrieval, not-found order, successful cancellation, and cancellation of shipped order. Tests should follow AAA pattern, use BDD-style naming, and use AssertJ.",
+      "files": [],
+      "expectations": [
+        "Uses @ExtendWith(MockitoExtension.class)",
+        "Uses @Mock for OrderRepository, PaymentGateway, InventoryClient",
+        "Uses @InjectMocks for OrderService",
+        "Test method names follow BDD-style (shouldX_whenY)",
+        "Covers happy path for placeOrder",
+        "Covers insufficient inventory exception path",
+        "Covers payment failure exception path",
+        "Covers getOrder success and not-found paths",
+        "Covers cancelOrder success",
+        "Covers cancelOrder on shipped order throws exception",
+        "Uses AssertJ assertions",
+        "Follows AAA pattern with blank line separation",
+        "Uses verify() to check interaction with mocks"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Can you write a @WebMvcTest for my ProductController?\n\n```java\n@RestController\n@RequestMapping(\"/api/products\")\npublic class ProductController {\n    private final ProductService productService;\n\n    public ProductController(ProductService productService) {\n        this.productService = productService;\n    }\n\n    @GetMapping\n    public ResponseEntity<List<Product>> getAllProducts(\n            @RequestParam(required = false) String category,\n            @RequestParam(defaultValue = \"0\") int page,\n            @RequestParam(defaultValue = \"20\") int size) {\n        List<Product> products = productService.findAll(category, page, size);\n        return ResponseEntity.ok(products);\n    }\n\n    @GetMapping(\"/{id}\")\n    public ResponseEntity<Product> getProduct(@PathVariable Long id) {\n        return ResponseEntity.ok(productService.findById(id));\n    }\n\n    @PostMapping\n    public ResponseEntity<Product> createProduct(@Valid @RequestBody CreateProductRequest request) {\n        Product created = productService.createProduct(request);\n        URI location = URI.create(\"/api/products/\" + created.getId());\n        return ResponseEntity.created(location).body(created);\n    }\n\n    @DeleteMapping(\"/{id}\")\n    public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {\n        productService.deleteProduct(id);\n        return ResponseEntity.noContent().build();\n    }\n\n    @ExceptionHandler(ProductNotFoundException.class)\n    public ResponseEntity<Map<String, String>> handleNotFound(ProductNotFoundException ex) {\n        return ResponseEntity.status(HttpStatus.NOT_FOUND)\n            .body(Map.of(\"error\", ex.getMessage()));\n    }\n}\n```\n\nI use Spring Boot 3.x with the standard starter test dependency.",
+      "expected_output": "A ProductControllerTest class annotated with @WebMvcTest(ProductController.class), using MockMvc @Autowired, @MockBean for ProductService, with tests for each endpoint (GET all with params, GET by ID, POST create, DELETE) covering both success and error cases.",
+      "files": [],
+      "expectations": [
+        "Uses @WebMvcTest(ProductController.class)",
+        "Uses @Autowired MockMvc",
+        "Uses @MockBean for ProductService",
+        "Tests GET /api/products with pagination and category params",
+        "Tests GET /api/products/{id} success",
+        "Tests GET /api/products/{id} 404 via @ExceptionHandler",
+        "Tests POST /api/products with valid request body",
+        "Tests DELETE /api/products/{id} returns 204",
+        "Uses MockMvcRequestBuilders static imports",
+        "Uses MockMvcResultMatchers static imports",
+        "Each test method includes throws Exception",
+        "Uses jsonPath for response body assertions"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I need a @DataJpaTest for this repository. Can you write it?\n\n```java\n@Repository\npublic interface OrderRepository extends JpaRepository<Order, Long> {\n    List<Order> findByCustomerId(Long customerId);\n\n    List<Order> findByStatusAndCreatedAtAfter(OrderStatus status, LocalDateTime date);\n\n    @Query(\"SELECT o FROM Order o WHERE o.customerId = :customerId AND o.total > :minAmount\")\n    List<Order> findLargeOrdersByCustomer(@Param(\"customerId\") Long customerId, @Param(\"minAmount\") Double minAmount);\n\n    @Query(\"SELECT COUNT(o) FROM Order o WHERE o.status = :status\")\n    long countByStatus(@Param(\"status\") OrderStatus status);\n\n    Page<Order> findAllByCustomerId(Long customerId, Pageable pageable);\n\n    boolean existsByCustomerIdAndStatus(Long customerId, OrderStatus status);\n}\n```\n\nAssume the Order entity has: id, customerId, status (enum: PENDING, CONFIRMED, SHIPPED, CANCELLED), total (double), createdAt (LocalDateTime), and a list of OrderItem. I use H2 for testing.",
+      "expected_output": "An OrderRepositoryTest class annotated with @DataJpaTest, using @Autowired for OrderRepository and TestEntityManager, with tests for derived queries (findByCustomerId, findByStatusAndCreatedAtAfter), @Query methods (findLargeOrdersByCustomer, countByStatus), pagination (findAllByCustomerId), and boolean check (existsByCustomerIdAndStatus).",
+      "files": [],
+      "expectations": [
+        "Uses @DataJpaTest",
+        "Uses @Autowired OrderRepository",
+        "Uses @Autowired TestEntityManager",
+        "Tests findByCustomerId derived query",
+        "Tests findByStatusAndCreatedAtAfter derived query with date",
+        "Tests findLargeOrdersByCustomer custom @Query",
+        "Tests countByStatus custom @Query",
+        "Tests findAllByCustomerId with pagination",
+        "Tests existsByCustomerIdAndStatus",
+        "Uses persistAndFlush for test data setup",
+        "Uses AssertJ assertions",
+        "Each test method has BDD-style name"
+      ]
+    }
+  ]
+}
